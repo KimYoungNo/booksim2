@@ -31,12 +31,11 @@
 
 #include "fly.hpp"
 #include "misc_utils.hpp"
-#include "Interconnect.hpp"
 
 //#define DEBUG_FLY
 
-KNFly::KNFly( const Configuration &config, const string & name, booksim2::Interconnect* icnt ) :
-Network( config, name, icnt )
+KNFly::KNFly( const Configuration &config, const string & name, booksim2::Interface *itfc ) :
+Network( config, name, itfc )
 {
   _ComputeSize( config );
   _Alloc( );
@@ -48,7 +47,7 @@ void KNFly::_ComputeSize( const Configuration &config )
   _k = config.GetInt( "k" );
   _n = config.GetInt( "n" );
 
-  icnt->gK = _k; icnt->gN = _n;
+  itfc->gK = _k; itfc->gN = _n;
 
   _nodes = powi( _k, _n );
 
@@ -72,7 +71,7 @@ void KNFly::_BuildNet( const Configuration &config )
     for ( int addr = 0; addr < per_stage; ++addr ) {
 
       router_name << "router_" << stage << "_" << addr;
-      _routers[node] = Router::NewRouter( config, this, icnt, router_name.str( ), 
+      _routers[node] = Router::NewRouter( config, this, itfc, router_name.str( ), 
 					  node, _k, _k );
       _timed_modules.push_back(_routers[node]);
       router_name.str("");

@@ -28,8 +28,8 @@
 #ifndef _FLY_HPP_
 #define _FLY_HPP_
 
-#include "globals.hpp"
 #include "network.hpp"
+#include "interface.hpp"
 
 class KNFly : public Network {
 
@@ -43,11 +43,11 @@ class KNFly : public Network {
   int _InChannel( int stage, int addr, int port ) const;
  
 public:
-  KNFly( const Configuration &config, const string & name, booksim2::Interconnect* icnt );
+  KNFly( const Configuration &config, const string & name, booksim2::Interface *itfc );
 
   int GetN( ) const;
   int GetK( ) const;
-  static void RegisterRoutingFunctions(booksim2::Interconnect* icnt){};
+  static void RegisterRoutingFunctions(booksim2::Interface *itfc){};
   double Capacity( ) const;
 };
 

@@ -44,10 +44,9 @@
 #include <sstream>
 #include "qtree.hpp"
 #include "misc_utils.hpp"
-#include "Interconnect.hpp"
 
-QTree::QTree( const Configuration& config, const string & name, booksim2::Interconnect* icnt )
-: Network ( config, name, icnt )
+QTree::QTree( const Configuration& config, const string & name, booksim2::Interface *itfc )
+: Network ( config, name, itfc )
 {
   _ComputeSize( config );
   _Alloc( );
@@ -63,7 +62,7 @@ void QTree::_ComputeSize( const Configuration& config )
 
   assert( _k == 4 && _n == 3 );
 
-  icnt->gK = _k; icnt->gN = _n;
+  itfc->gK = _k; itfc->gN = _n;
 
   _nodes = powi( _k, _n );
 
@@ -77,7 +76,7 @@ void QTree::_ComputeSize( const Configuration& config )
 
 }
 
-void QTree::RegisterRoutingFunctions(booksim2::Interconnect* icnt){
+void QTree::RegisterRoutingFunctions(booksim2::Interface *itfc){
 
 }
 
@@ -93,7 +92,7 @@ void QTree::_BuildNet( const Configuration& config )
       routerName << h << "_" << pos;
 
       int d = ( h == 0 ) ? _k : _k + 1;
-      _routers[r] = Router::NewRouter( config, this, icnt,
+      _routers[r] = Router::NewRouter( config, this, itfc,
 				       routerName.str( ),
 				       id, d, d);
       _timed_modules.push_back(_routers[r]);

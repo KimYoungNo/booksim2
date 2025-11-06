@@ -36,6 +36,7 @@
 
 #include "router.hpp"
 #include "routefunc.hpp"
+#include "interface.hpp"
 
 using namespace std;
 
@@ -151,9 +152,9 @@ class IQRouter : public Router {
 public:
 
   IQRouter( Configuration const & config,
-	    Module *parent, string const & name, int id,
-	    int inputs, int outputs, booksim2::Interconnect* icnt );
-
+	    Module *parent, booksim2::Interface *itfc, string const & name, int id,
+	    int inputs, int outputs );
+  
   virtual ~IQRouter( );
   
   virtual void AddOutputChannel(FlitChannel * channel, CreditChannel * backchannel);

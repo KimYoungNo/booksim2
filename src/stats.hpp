@@ -62,9 +62,6 @@ public:
   inline void AddSample( int val ) {
     AddSample( (double)val );
   }
-  inline void AddSample( unsigned long long val ) {
-    AddSample( (double)val );
-  }
 
   int GetBin(int b){ return _hist[b];}
 

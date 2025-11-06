@@ -35,8 +35,6 @@
 #include<map>
 #include<vector>
 
-// extern "C" int yyparse();
-
 class Configuration {
   static Configuration * theConfig;
   FILE * _config_file;
@@ -51,8 +49,6 @@ public:
   Configuration();
 
   void AddStrField(string const & field, string const & value);
-  void AddIntField(string const & field, int const & value);
-  void AddFloatField(string const & field, double const & value);
 
   void Assign(string const & field, string const & value);
   void Assign(string const & field, int value);
@@ -85,6 +81,7 @@ public:
   }
 
   static Configuration * GetTheConfig();
+
 };
 
 bool ParseArgs(Configuration * cf, int argc, char **argv);

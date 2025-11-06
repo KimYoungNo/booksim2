@@ -28,15 +28,17 @@
 #ifndef _ANYNET_HPP_
 #define _ANYNET_HPP_
 
-#include "network.hpp"
-#include "routefunc.hpp"
 #include <cassert>
 #include <string>
 #include <map>
 #include <list>
 
-class AnyNet : public Network {
+#include "network.hpp"
+#include "routefunc.hpp"
+#include "interface.hpp"
 
+class AnyNet : public Network {
+  booksim2::Interface *itfc;
   string file_name;
   //associtation between  nodes and routers
   map<int, int > node_list;
@@ -53,13 +55,13 @@ class AnyNet : public Network {
   void route(int r_start);
 
 public:
-  AnyNet( const Configuration &config, const string & name, booksim2::Interconnect* icnt);
+  AnyNet( const Configuration &config, const string & name, booksim2::Interface *itfc );
   ~AnyNet();
 
   int GetN( ) const{ return -1;}
   int GetK( ) const{ return -1;}
 
-  static void RegisterRoutingFunctions(booksim2::Interconnect* icnt);
+  static void RegisterRoutingFunctions(booksim2::Interface *itfc);
   double Capacity( ) const {return -1;}
   void InsertRandomFaults( const Configuration &config ){}
 };

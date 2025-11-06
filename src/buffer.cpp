@@ -27,14 +27,13 @@
 
 #include <sstream>
 
-#include "globals.hpp"
 #include "booksim.hpp"
 #include "buffer.hpp"
-#include "Interconnect.hpp"
+#include "interface.hpp"
 
 Buffer::Buffer( const Configuration& config, int outputs, 
-		Module *parent, booksim2::Interconnect* icnt, const string& name ) :
-Module( parent, name ), _occupancy(0), icnt(icnt)
+		Module *parent, booksim2::Interface *itfc, const string& name ) :
+Module( parent, name ), _occupancy(0), itfc(itfc)
 {
   int num_vcs = config.GetInt( "num_vcs" );
 
@@ -48,7 +47,7 @@ Module( parent, name ), _occupancy(0), icnt(icnt)
   for(int i = 0; i < num_vcs; ++i) {
     ostringstream vc_name;
     vc_name << "vc_" << i;
-    _vc[i] = new VC(config, outputs, this, icnt, vc_name.str( ) );
+    _vc[i] = new VC(config, outputs, this, itfc, vc_name.str( ) );
   }
 
 #ifdef TRACK_BUFFERS

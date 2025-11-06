@@ -55,12 +55,10 @@
 #include <sstream>
 #include <limits>
 #include <algorithm>
-#include "Interconnect.hpp"
-//this is a hack, I can't easily get the routing talbe out of the network
-//map<int, int>* anynet_global_routing_table;
 
-AnyNet::AnyNet( const Configuration &config, const string & name, booksim2::Interconnect* icnt )
-  :  Network( config, name, icnt ){
+
+AnyNet::AnyNet(const Configuration &config, const string & name, booksim2::Interface *itfc )
+  :  Network( config, name, itfc ){
 
   router_list.resize(2);
   _ComputeSize( config );
@@ -151,7 +149,7 @@ void AnyNet::_BuildNet( const Configuration &config ){
     ostringstream router_name;
     router_name << "router";
     router_name << "_" <<  node ;
-    _routers[node] = Router::NewRouter( config, this, icnt, router_name.str( ), 
+    _routers[node] = Router::NewRouter( config, this, itfc, router_name.str( ), 
     					node, radix, radix );
     _timed_modules.push_back(_routers[node]);
     //add injeciton ejection channels
@@ -208,33 +206,32 @@ void AnyNet::_BuildNet( const Configuration &config ){
 }
 
 
-void AnyNet::RegisterRoutingFunctions(booksim2::Interconnect* icnt) {
-  icnt->gRoutingFunctionMap["min_anynet"] = &min_anynet;
+void AnyNet::RegisterRoutingFunctions(booksim2::Interface *itfc) {
+  itfc->gRoutingFunctionMap["min_anynet"] = &min_anynet;
 }
 
 void min_anynet( const Router *r, const Flit *f, int in_channel, 
 		 OutputSet *outputs, bool inject ){
-  booksim2::Interconnect* icnt = r->icnt;
   int out_port=-1;
   if(!inject){
-    assert(icnt->anynet_global_routing_table[r->GetID()].count(f->dest)!=0);
-    out_port=icnt->anynet_global_routing_table[r->GetID()][f->dest];
+    assert(r->itfc->anynet_global_routing_table[r->GetID()].count(f->dest)!=0);
+    out_port=r->itfc->anynet_global_routing_table[r->GetID()][f->dest];
   }
  
 
-  int vcBegin = 0, vcEnd = icnt->gNumVCs-1;
+  int vcBegin = 0, vcEnd = r->itfc->gNumVCs-1;
   if ( f->type == Flit::READ_REQUEST ) {
-    vcBegin = icnt->gReadReqBeginVC;
-    vcEnd   = icnt->gReadReqEndVC;
+    vcBegin = r->itfc->gReadReqBeginVC;
+    vcEnd   = r->itfc->gReadReqEndVC;
   } else if ( f->type == Flit::WRITE_REQUEST ) {
-    vcBegin = icnt->gWriteReqBeginVC;
-    vcEnd   = icnt->gWriteReqEndVC;
+    vcBegin = r->itfc->gWriteReqBeginVC;
+    vcEnd   = r->itfc->gWriteReqEndVC;
   } else if ( f->type ==  Flit::READ_REPLY ) {
-    vcBegin = icnt->gReadReplyBeginVC;
-    vcEnd   = icnt->gReadReplyEndVC;
+    vcBegin = r->itfc->gReadReplyBeginVC;
+    vcEnd   = r->itfc->gReadReplyEndVC;
   } else if ( f->type ==  Flit::WRITE_REPLY ) {
-    vcBegin = icnt->gWriteReplyBeginVC;
-    vcEnd   = icnt->gWriteReplyEndVC;
+    vcBegin = r->itfc->gWriteReplyBeginVC;
+    vcEnd   = r->itfc->gWriteReplyEndVC;
   }
 
   outputs->Clear( );
@@ -248,7 +245,7 @@ void AnyNet::buildRoutingTable(){
   for(int i = 0; i<_size; i++){
     route(i);
   }
-  icnt->anynet_global_routing_table = &routing_table[0];
+  itfc->anynet_global_routing_table = &routing_table[0];
 }
 
 
@@ -335,7 +332,6 @@ void AnyNet::readFile(){
   enum ParseType{NODE=0,
 		 ROUTER,
 		 UNKNOWN};
-
   std::cout << file_name.c_str() << std::endl;
   network_list.open(file_name.c_str());
   if(!network_list.is_open()){

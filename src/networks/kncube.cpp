@@ -39,12 +39,11 @@
 #include "kncube.hpp"
 #include "random_utils.hpp"
 #include "misc_utils.hpp"
-#include "Interconnect.hpp"
- //#include "iq_router.hpp"
+#include "interface.hpp"
 
 
-KNCube::KNCube( const Configuration &config, const string & name, bool mesh, booksim2::Interconnect* icnt ) :
-Network( config, name, icnt )
+KNCube::KNCube( const Configuration &config, const string & name, bool mesh, booksim2::Interface *itfc ) :
+Network( config, name, itfc )
 {
   _mesh = mesh;
 
@@ -58,14 +57,14 @@ void KNCube::_ComputeSize( const Configuration &config )
   _k = config.GetInt( "k" );
   _n = config.GetInt( "n" );
 
-  icnt->gK = _k; icnt->gN = _n;
+  itfc->gK = _k; itfc->gN = _n;
   _size     = powi( _k, _n );
   _channels = 2*_n*_size;
 
   _nodes = _size;
 }
 
-void KNCube::RegisterRoutingFunctions(booksim2::Interconnect* icnt) {
+void KNCube::RegisterRoutingFunctions(booksim2::Interface *itfc) {
 
 }
 void KNCube::_BuildNet( const Configuration &config )
@@ -95,7 +94,7 @@ void KNCube::_BuildNet( const Configuration &config )
       }
     }
 
-    _routers[node] = Router::NewRouter( config, this, icnt, router_name.str( ), 
+    _routers[node] = Router::NewRouter( config, this, itfc, router_name.str( ), 
 					node, 2*_n + 1, 2*_n + 1 );
     _timed_modules.push_back(_routers[node]);
 

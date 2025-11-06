@@ -40,8 +40,6 @@
 #include "booksim.hpp"
 #include "buffer_state.hpp"
 #include "random_utils.hpp"
-#include "globals.hpp"
-#include "Interconnect.hpp"
 
 //#define DEBUG_FEEDBACK
 //#define DEBUG_SIMPLEFEEDBACK
@@ -60,7 +58,11 @@ void BufferState::BufferPolicy::SendingFlit(Flit const * const f) {
 void BufferState::BufferPolicy::FreeSlotFor(int vc) {
 }
 
-BufferState::BufferPolicy * BufferState::BufferPolicy::New(Configuration const & config, BufferState * parent, booksim2::Interconnect* icnt, const string & name)
+BufferState::BufferPolicy *
+BufferState::BufferPolicy::New(Configuration const & config,
+                               BufferState * parent,
+                               booksim2::Interface *itfc,
+                               const string & name)
 {
   BufferPolicy * sp = NULL;
   string buffer_policy = config.GetStr("buffer_policy");
@@ -81,7 +83,7 @@ BufferState::BufferPolicy * BufferState::BufferPolicy::New(Configuration const &
   } else {
     cout << "Unknown buffer policy: " << buffer_policy << endl;
   }
-  sp->icnt = icnt;
+  sp->itfc = itfc;
   return sp;
 }
 
@@ -391,7 +393,7 @@ void BufferState::FeedbackSharedBufferPolicy::SetMinLatency(int min_latency)
 void BufferState::FeedbackSharedBufferPolicy::SendingFlit(Flit const * const f)
 {
   SharedBufferPolicy::SendingFlit(f);
-  _flit_sent_time[f->vc].push(icnt->get_cycle());
+  _flit_sent_time[f->vc].push(itfc->get_cycle());
 }
 
 int BufferState::FeedbackSharedBufferPolicy::_ComputeRTT(int vc, int last_rtt) const
@@ -416,7 +418,7 @@ int BufferState::FeedbackSharedBufferPolicy::_ComputeMaxSlots(int vc) const
 {
   int max_slots = _occupancy_limit[vc];
   if(!_flit_sent_time[vc].empty()) {
-    int min_rtt = icnt->get_cycle() - _flit_sent_time[vc].front();
+    int min_rtt = itfc->get_cycle() - _flit_sent_time[vc].front();
     int rtt = _ComputeRTT(vc, min_rtt);
     int limit = _ComputeLimit(rtt);
     max_slots = min(max_slots, limit);
@@ -428,7 +430,7 @@ void BufferState::FeedbackSharedBufferPolicy::FreeSlotFor(int vc)
 {
   SharedBufferPolicy::FreeSlotFor(vc);
   assert(!_flit_sent_time[vc].empty());
-  int const last_rtt = icnt->get_cycle() - _flit_sent_time[vc].front();
+  int const last_rtt = itfc->get_cycle() - _flit_sent_time[vc].front();
 #ifdef DEBUG_FEEDBACK
   cerr << FullName() << ": Probe for VC "
        << vc << " came back after "
@@ -538,9 +540,11 @@ void BufferState::SimpleFeedbackSharedBufferPolicy::FreeSlotFor(int vc)
   SharedBufferPolicy::FreeSlotFor(vc);
 }
 
-BufferState::BufferState( const Configuration& config, Module *parent, 
-                         booksim2::Interconnect* icnt, const string& name ) : 
-  Module( parent, name ), _occupancy(0), icnt(icnt)
+BufferState::BufferState(const Configuration& config,
+                         Module *parent,
+                         booksim2::Interface *itfc,
+                         const string& name ) : 
+  Module( parent, name ), _occupancy(0), itfc(itfc)
 {
   _vcs = config.GetInt( "num_vcs" );
   _size = config.GetInt("buf_size");
@@ -548,7 +552,7 @@ BufferState::BufferState( const Configuration& config, Module *parent,
     _size = _vcs * config.GetInt("vc_buf_size");
   }
 
-  _buffer_policy = BufferPolicy::New(config, this, icnt, "policy");
+  _buffer_policy = BufferPolicy::New(config, this, itfc, "policy");
 
   _wait_for_tail_credit = config.GetInt( "wait_for_tail_credit" );
 

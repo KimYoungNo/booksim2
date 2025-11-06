@@ -35,12 +35,9 @@
 
 #include <limits>
 #include <sstream>
-#include <fstream>
 
-#include "globals.hpp"
 #include "booksim.hpp"
 #include "vc.hpp"
-#include "Interconnect.hpp"
 
 const char * const VC::VCSTATE[] = {"idle",
 				    "routing",
@@ -48,10 +45,10 @@ const char * const VC::VCSTATE[] = {"idle",
 				    "active"};
 
 VC::VC( const Configuration& config, int outputs, 
-	Module *parent, booksim2::Interconnect* icnt, const string& name )
-  : Module( parent, name ), 
+	Module *parent, booksim2::Interface *itfc, const string& name )
+  : Module( parent, name ), itfc(itfc),
     _state(idle), _out_port(-1), _out_vc(-1), _pri(0), _watched(false), 
-    _expected_pid(-1), _last_id(-1), _last_pid(-1), icnt(icnt)
+    _expected_pid(-1), _last_id(-1), _last_pid(-1)
 {
   _lookahead_routing = !config.GetInt("routing_delay");
   _route_set = _lookahead_routing ? NULL : new OutputSet( );
@@ -98,7 +95,7 @@ void VC::AddFlit( Flit *f )
     
   // update flit priority before adding to VC buffer
   if(_pri_type == local_age_based) {
-    f->pri = numeric_limits<int>::max() - icnt->get_cycle();
+    f->pri = numeric_limits<int>::max() - itfc->get_cycle();
     assert(f->pri >= 0);
   } else if(_pri_type == hop_count_based) {
     f->pri = f->hops;
@@ -131,9 +128,11 @@ void VC::SetState( eVCState s )
   Flit * f = FrontFlit();
   
   if(f && f->watch)
-    *(icnt->gWatchOut) << icnt->get_cycle() << " | " << FullName() << " | "
-		<< "Changing state from " << VC::VCSTATE[_state]
-		<< " to " << VC::VCSTATE[s] << "." << endl;
+    *(itfc->gWatchOut)
+      << itfc->get_cycle() << " | "
+      << FullName() << " | "
+		  << "Changing state from " << VC::VCSTATE[_state]
+		  << " to " << VC::VCSTATE[s] << "." << endl;
   
   _state = s;
 }
@@ -170,15 +169,19 @@ void VC::UpdatePriority()
 	if(bf->pri > df->pri) df = bf;
       }
       if((df != f) && (df->watch || f->watch)) {
-	*(icnt->gWatchOut) << icnt->get_cycle() << " | " << FullName() << " | "
-		    << "Flit " << df->id
-		    << " donates priority to flit " << f->id
-		    << "." << endl;
+	*(itfc->gWatchOut)
+      << itfc->get_cycle() << " | "
+      << FullName() << " | "
+		  << "Flit " << df->id
+		  << " donates priority to flit " << f->id
+		  << "." << endl;
       }
       f = df;
     }
     if(f->watch)
-      *(icnt->gWatchOut) << icnt->get_cycle() << " | " << FullName() << " | "
+      *(itfc->gWatchOut)
+      << itfc->get_cycle() << " | "
+      << FullName() << " | "
 		  << "Flit " << f->id
 		  << " sets priority to " << f->pri
 		  << "." << endl;

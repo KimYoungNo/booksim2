@@ -43,6 +43,7 @@
 #define _TREE4_HPP_
 #include <cassert>
 #include "network.hpp"
+#include "interface.hpp"
 
 class Tree4 : public Network {
 
@@ -61,8 +62,8 @@ class Tree4 : public Network {
 
 public:
 
-  Tree4( const Configuration& config, const string & name, booksim2::Interconnect* icnt );
-  static void RegisterRoutingFunctions(booksim2::Interconnect* icnt) ;
+  Tree4( const Configuration& config, const string & name, booksim2::Interface *itfc );
+  static void RegisterRoutingFunctions(booksim2::Interface *itfc) ;
   
   static int HeightFromID( int id );
   static int PosFromID( int id );

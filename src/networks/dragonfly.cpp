@@ -28,14 +28,11 @@
 
 #include "booksim.hpp"
 #include <vector>
-#include <fstream>
 #include <sstream>
 
 #include "dragonfly.hpp"
 #include "random_utils.hpp"
 #include "misc_utils.hpp"
-#include "globals.hpp"
-#include "Interconnect.hpp"
 
 #define DRAGON_LATENCY
 
@@ -148,8 +145,8 @@ int dragonfly_port(int rID, int source, int dest){
 }
 
 
-DragonFlyNew::DragonFlyNew( const Configuration &config, const string & name, booksim2::Interconnect* icnt ) :
-  Network( config, name, icnt )
+DragonFlyNew::DragonFlyNew( const Configuration &config, const string & name, booksim2::Interface *itfc ) :
+  Network( config, name, itfc )
 {
 
   _ComputeSize( config );
@@ -181,7 +178,7 @@ void DragonFlyNew::_ComputeSize( const Configuration &config )
 
   
   // FIX...
-  icnt->gK = _p; icnt->gN = _n;
+  itfc->gK = _p; itfc->gN = _n;
 
   // with 1 dimension, total of 2p routers per group
   // N = 2p * p * (2p^2 + 1)
@@ -244,7 +241,7 @@ void DragonFlyNew::_BuildNet( const Configuration &config )
     
     router_name << "_" <<  node ;
 
-    _routers[node] = Router::NewRouter( config, this, icnt, router_name.str( ), 
+    _routers[node] = Router::NewRouter( config, this, itfc, router_name.str( ), 
 					node, _k, _k );
     _timed_modules.push_back(_routers[node]);
 
@@ -402,21 +399,20 @@ double DragonFlyNew::Capacity( ) const
   return (double)_k / 8.0;
 }
 
-void DragonFlyNew::RegisterRoutingFunctions(booksim2::Interconnect* icnt){
+void DragonFlyNew::RegisterRoutingFunctions(booksim2::Interface *itfc){
 
-  icnt->gRoutingFunctionMap["min_dragonflynew"] = &min_dragonflynew;
-  icnt->gRoutingFunctionMap["ugal_dragonflynew"] = &ugal_dragonflynew;
+  itfc->gRoutingFunctionMap["min_dragonflynew"] = &min_dragonflynew;
+  itfc->gRoutingFunctionMap["ugal_dragonflynew"] = &ugal_dragonflynew;
 }
 
 
 void min_dragonflynew( const Router *r, const Flit *f, int in_channel, 
 		       OutputSet *outputs, bool inject )
 {
-  booksim2::Interconnect* icnt = r->icnt;
   outputs->Clear( );
 
   if(inject) {
-    int inject_vc= RandomInt(icnt->gNumVCs-1);
+    int inject_vc= RandomInt(r->itfc->gNumVCs-1);
     outputs->AddRange(-1, inject_vc, inject_vc);
     return;
   }
@@ -450,7 +446,7 @@ void min_dragonflynew( const Router *r, const Flit *f, int in_channel,
   
   out_vc = f->ph;
   if (debug)
-    *(icnt->gWatchOut) << r->icnt->get_cycle() << " | " << r->FullName() << " | "
+    *(r->itfc->gWatchOut) << r->itfc->get_cycle() << " | " << r->FullName() << " | "
 	       << "	through output port : " << out_port 
 	       << " out vc: " << out_vc << endl;
   outputs->AddRange( out_port, out_vc, out_vc );
@@ -461,13 +457,12 @@ void min_dragonflynew( const Router *r, const Flit *f, int in_channel,
 void ugal_dragonflynew( const Router *r, const Flit *f, int in_channel, 
 			OutputSet *outputs, bool inject )
 {
-  booksim2::Interconnect* icnt = r->icnt;
   //need 3 VCs for deadlock freedom
 
-  assert(icnt->gNumVCs==3);
+  assert(r->itfc->gNumVCs==3);
   outputs->Clear( );
   if(inject) {
-    int inject_vc= RandomInt(icnt->gNumVCs-1);
+    int inject_vc= RandomInt(r->itfc->gNumVCs-1);
     outputs->AddRange(-1, inject_vc, inject_vc);
     return;
   }

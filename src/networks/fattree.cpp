@@ -51,13 +51,12 @@
 
 #include "fattree.hpp"
 #include "misc_utils.hpp"
-#include "Interconnect.hpp"
 
 
  //#define FATTREE_DEBUG
 
-FatTree::FatTree( const Configuration& config,const string & name, booksim2::Interconnect* icnt )
-  : Network( config ,name, icnt)
+FatTree::FatTree( const Configuration& config,const string & name, booksim2::Interface *itfc)
+  : Network( config ,name, itfc)
 {
   
 
@@ -73,7 +72,7 @@ void FatTree::_ComputeSize( const Configuration& config )
   _k = config.GetInt( "k" );
   _n = config.GetInt( "n" );
    
-  icnt->gK = _k; icnt->gN = _n;
+  itfc->gK = _k; itfc->gN = _n;
   
   _nodes = powi( _k, _n );
 
@@ -87,7 +86,7 @@ void FatTree::_ComputeSize( const Configuration& config )
 }
 
 
-void FatTree::RegisterRoutingFunctions(booksim2::Interconnect* icnt) {
+void FatTree::RegisterRoutingFunctions(booksim2::Interface *itfc) {
 
 }
 
@@ -121,7 +120,7 @@ void FatTree::_BuildNet( const Configuration& config )
 
       name.str("");
       name << "router_level" << level << "_" << pos;
-      Router * r = Router::NewRouter( config, this, icnt, name.str( ), id,
+      Router * r = Router::NewRouter( config, this, itfc, name.str( ), id,
 				      degree, degree );
       _Router( level, pos ) = r;
       _timed_modules.push_back(r);
@@ -216,8 +215,8 @@ void FatTree::_BuildNet( const Configuration& config )
 	int link = 
 	  ((level+1)*chan_per_level - chan_per_direction)  //which levellevel
 	  +neighborhood*level_offset   //region in level
-	  +port*routers_per_branch*icnt->gK  //sub region in region
-	  +(neighborhood_pos)%routers_per_branch*icnt->gK  //router in subregion
+	  +port*routers_per_branch*itfc->gK  //sub region in region
+	  +(neighborhood_pos)%routers_per_branch*itfc->gK  //router in subregion
 	  +(neighborhood_pos)/routers_per_branch; //port on router
 
 	_Router(level, pos)->AddInputChannel( _chan[link],
@@ -245,8 +244,8 @@ void FatTree::_BuildNet( const Configuration& config )
 	int link = 
 	  ((level-1)*chan_per_level) //which levellevel
 	  +neighborhood*level_offset   //region in level
-	  +port*routers_per_branch*icnt->gK  //sub region in region
-	  +(neighborhood_pos)%routers_per_branch*icnt->gK //router in subregion
+	  +port*routers_per_branch*itfc->gK  //sub region in region
+	  +(neighborhood_pos)%routers_per_branch*itfc->gK //router in subregion
 	  +(neighborhood_pos)/routers_per_branch; //port on router
 
 	_Router(level, pos)->AddInputChannel( _chan[link],

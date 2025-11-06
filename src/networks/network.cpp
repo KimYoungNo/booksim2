@@ -37,7 +37,6 @@
 
 #include "booksim.hpp"
 #include "network.hpp"
-#include "Interconnect.hpp"
 
 #include "kncube.hpp"
 #include "fly.hpp"
@@ -50,8 +49,9 @@
 #include "dragonfly.hpp"
 
 
-Network::Network( const Configuration &config, const string & name, booksim2::Interconnect* icnt ) :
-  TimedModule( 0, name ), icnt(icnt)
+Network::Network( const Configuration &config,
+                 const string & name, booksim2::Interface *itfc ) :
+  TimedModule( 0, name ), itfc(itfc)
 {
   _size     = -1; 
   _nodes    = -1; 
@@ -78,40 +78,41 @@ Network::~Network( )
   }
 }
 
-Network * Network::New(const Configuration & config, const string & name, booksim2::Interconnect* icnt)
+Network * Network::New(const Configuration & config,
+                       const string & name, booksim2::Interface *itfc)
 {
   const string topo = config.GetStr( "topology" );
   Network * n = NULL;
   if ( topo == "torus" ) {
-    KNCube::RegisterRoutingFunctions(icnt) ;
-    n = new KNCube( config, name, false, icnt );
+    KNCube::RegisterRoutingFunctions(itfc) ;
+    n = new KNCube( config, name, false, itfc );
   } else if ( topo == "mesh" ) {
-    KNCube::RegisterRoutingFunctions(icnt) ;
-    n = new KNCube( config, name, true, icnt );
+    KNCube::RegisterRoutingFunctions(itfc) ;
+    n = new KNCube( config, name, true, itfc );
   } else if ( topo == "cmesh" ) {
-    CMesh::RegisterRoutingFunctions(icnt) ;
-    n = new CMesh( config, name, icnt );
+    CMesh::RegisterRoutingFunctions(itfc) ;
+    n = new CMesh( config, name, itfc );
   } else if ( topo == "fly" ) {
-    KNFly::RegisterRoutingFunctions(icnt) ;
-    n = new KNFly( config, name, icnt );
+    KNFly::RegisterRoutingFunctions(itfc) ;
+    n = new KNFly( config, name, itfc );
   } else if ( topo == "qtree" ) {
-    QTree::RegisterRoutingFunctions(icnt) ;
-    n = new QTree( config, name, icnt );
+    QTree::RegisterRoutingFunctions(itfc) ;
+    n = new QTree( config, name, itfc );
   } else if ( topo == "tree4" ) {
-    Tree4::RegisterRoutingFunctions(icnt) ;
-    n = new Tree4( config, name, icnt );
+    Tree4::RegisterRoutingFunctions(itfc) ;
+    n = new Tree4( config, name, itfc );
   } else if ( topo == "fattree" ) {
-    FatTree::RegisterRoutingFunctions(icnt) ;
-    n = new FatTree( config, name, icnt );
+    FatTree::RegisterRoutingFunctions(itfc) ;
+    n = new FatTree( config, name, itfc );
   } else if ( topo == "flatfly" ) {
-    FlatFlyOnChip::RegisterRoutingFunctions(icnt) ;
-    n = new FlatFlyOnChip( config, name, icnt );
+    FlatFlyOnChip::RegisterRoutingFunctions(itfc) ;
+    n = new FlatFlyOnChip( config, name, itfc );
   } else if ( topo == "anynet"){
-    AnyNet::RegisterRoutingFunctions(icnt) ;
-    n = new AnyNet(config, name, icnt);
+    AnyNet::RegisterRoutingFunctions(itfc) ;
+    n = new AnyNet(config, name, itfc);
   } else if ( topo == "dragonflynew"){
-    DragonFlyNew::RegisterRoutingFunctions(icnt) ;
-    n = new DragonFlyNew(config, name, icnt);
+    DragonFlyNew::RegisterRoutingFunctions(itfc) ;
+    n = new DragonFlyNew(config, name, itfc);
   } else {
     cerr << "Unknown topology: " << topo << endl;
   }
@@ -132,7 +133,7 @@ void Network::_Alloc( )
 	  ( _channels != -1 ) );
 
   _routers.resize(_size);
-  icnt->gNodes = _nodes;
+  itfc->gNodes = _nodes;
 
   /*booksim used arrays of flits as the channels which makes have capacity of
    *one. To simulate channel latency, flitchannel class has been added
@@ -145,12 +146,12 @@ void Network::_Alloc( )
   for ( int s = 0; s < _nodes; ++s ) {
     ostringstream name;
     name << Name() << "_fchan_ingress" << s;
-    _inject[s] = new FlitChannel(this, icnt, name.str(), _classes);
+    _inject[s] = new FlitChannel(this, itfc, name.str(), _classes);
     _inject[s]->SetSource(NULL, s);
     _timed_modules.push_back(_inject[s]);
     name.str("");
     name << Name() << "_cchan_ingress" << s;
-    _inject_cred[s] = new CreditChannel(this, icnt, name.str());
+    _inject_cred[s] = new CreditChannel(this, itfc, name.str());
     _timed_modules.push_back(_inject_cred[s]);
   }
   _eject.resize(_nodes);
@@ -158,12 +159,12 @@ void Network::_Alloc( )
   for ( int d = 0; d < _nodes; ++d ) {
     ostringstream name;
     name << Name() << "_fchan_egress" << d;
-    _eject[d] = new FlitChannel(this, icnt, name.str(), _classes);
+    _eject[d] = new FlitChannel(this, itfc, name.str(), _classes);
     _eject[d]->SetSink(NULL, d);
     _timed_modules.push_back(_eject[d]);
     name.str("");
     name << Name() << "_cchan_egress" << d;
-    _eject_cred[d] = new CreditChannel(this, icnt, name.str());
+    _eject_cred[d] = new CreditChannel(this, itfc, name.str());
     _timed_modules.push_back(_eject_cred[d]);
   }
   _chan.resize(_channels);
@@ -171,11 +172,11 @@ void Network::_Alloc( )
   for ( int c = 0; c < _channels; ++c ) {
     ostringstream name;
     name << Name() << "_fchan_" << c;
-    _chan[c] = new FlitChannel(this, icnt, name.str(), _classes);
+    _chan[c] = new FlitChannel(this, itfc, name.str(), _classes);
     _timed_modules.push_back(_chan[c]);
     name.str("");
     name << Name() << "_cchan_" << c;
-    _chan_cred[c] = new CreditChannel(this, icnt, name.str());
+    _chan_cred[c] = new CreditChannel(this, itfc, name.str());
     _timed_modules.push_back(_chan_cred[c]);
   }
 }

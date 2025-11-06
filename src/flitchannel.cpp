@@ -34,21 +34,18 @@
 
 #include "flitchannel.hpp"
 
-//#include <iostream>
+#include <iostream>
 #include <iomanip>
-#include <fstream>
 
 #include "router.hpp"
-#include "globals.hpp"
-#include "Interconnect.hpp"
+#include "interface.hpp"
 
-// ----------------------------------------------------------------------
-//  $Author: jbalfour $
-//  $Date: 2007/06/27 23:10:17 $
-//  $Id$
-// ----------------------------------------------------------------------
-FlitChannel::FlitChannel(Module * parent, booksim2::Interconnect* icnt, string const & name, int classes)
-: Channel<Flit>(parent, icnt, name), _routerSource(NULL), _routerSourcePort(-1), 
+
+FlitChannel::FlitChannel(Module * parent,
+                         booksim2::Interface *itfc,
+                         string const & name, int classes)
+: Channel<Flit>(parent, itfc, name),
+  _routerSource(NULL), _routerSourcePort(-1), 
   _routerSink(NULL), _routerSinkPort(-1), _idle(0) {
   _active.resize(classes, 0);
 }
@@ -75,10 +72,12 @@ void FlitChannel::Send(Flit * f) {
 void FlitChannel::ReadInputs() {
   Flit const * const & f = _input;
   if(f && f->watch) {
-    *(icnt->gWatchOut) << icnt->get_cycle() << " | " << FullName() << " | "
-	       << "Beginning channel traversal for flit " << f->id
-	       << " with delay " << _delay
-	       << "." << endl;
+    *(itfc->gWatchOut)
+        << itfc->get_cycle() << " | "
+        << FullName() << " | "
+	      << "Beginning channel traversal for flit " << f->id
+	      << " with delay " << _delay
+	      << "." << endl;
   }
   Channel<Flit>::ReadInputs();
 }
@@ -86,8 +85,10 @@ void FlitChannel::ReadInputs() {
 void FlitChannel::WriteOutputs() {
   Channel<Flit>::WriteOutputs();
   if(_output && _output->watch) {
-    *(icnt->gWatchOut) << icnt->get_cycle() << " | " << FullName() << " | "
-	       << "Completed channel traversal for flit " << _output->id
-	       << "." << endl;
+    *(itfc->gWatchOut)
+        << itfc->get_cycle() << " | " 
+        << FullName() << " | "
+	      << "Completed channel traversal for flit " << _output->id
+	      << "." << endl;
   }
 }

@@ -36,6 +36,7 @@
 #include "flitchannel.hpp"
 #include "switch_monitor.hpp"
 #include "buffer_monitor.hpp"
+#include "interface.hpp"
 
 struct wire{
   double L;
@@ -179,7 +180,7 @@ public:
   Power_Module(Network * net, const Configuration &config);
   ~Power_Module();
 
-  void run();
+  void run(booksim2::Interface *itfc);
 
 
 };

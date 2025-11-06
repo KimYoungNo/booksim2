@@ -43,17 +43,18 @@
 
 #include "network.hpp"
 #include "routefunc.hpp"
+#include "interface.hpp"
 
 class CMesh : public Network {
 public:
-  CMesh( const Configuration &config, const string & name, booksim2::Interconnect* icnt );
+  CMesh( const Configuration &config, const string & name, booksim2::Interface *itfc );
   int GetN() const;
   int GetK() const;
 
-  static int NodeToRouter( booksim2::Interconnect* icnt, int address ) ;
-  static int NodeToPort( booksim2::Interconnect* icnt, int address ) ;
+  static int NodeToRouter(booksim2::Interface *itfc, int address ) ;
+  static int NodeToPort(booksim2::Interface *itfc, int address ) ;
 
-  static void RegisterRoutingFunctions(booksim2::Interconnect* icnt) ;
+  static void RegisterRoutingFunctions(booksim2::Interface *itfc) ;
 
 private:
 

@@ -40,6 +40,7 @@
 #include "buffer_state.hpp"
 #include "pipefifo.hpp"
 #include "vc.hpp"
+#include "interface.hpp"
 
 class ChaosRouter : public Router {
 
@@ -106,8 +107,8 @@ class ChaosRouter : public Router {
 
 public:
   ChaosRouter( const Configuration& config,
-	    Module *parent, const string & name, int id,
-	    int inputs, int outputs, booksim2::Interconnect* icnt);
+	    Module *parent, booksim2::Interface *itfc, const string & name, int id,
+	    int inputs, int outputs );
 
   virtual ~ChaosRouter( );
 

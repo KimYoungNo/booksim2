@@ -28,11 +28,11 @@
 #ifndef _FlatFlyOnChip_HPP_
 #define _FlatFlyOnChip_HPP_
 
-#include "globals.hpp"
-#include "network.hpp"
-
-#include "routefunc.hpp"
 #include <cassert>
+
+#include "network.hpp"
+#include "routefunc.hpp"
+#include "interface.hpp"
 
 
 class FlatFlyOnChip : public Network {
@@ -56,12 +56,13 @@ class FlatFlyOnChip : public Network {
   int _InChannel( int stage, int addr, int port ) const;
 
 public:
-  FlatFlyOnChip( const Configuration &config, const string & name, booksim2::Interconnect* icnt );
+  FlatFlyOnChip( const Configuration &config, const string & name,
+      booksim2::Interface *itfc );
 
   int GetN( ) const;
   int GetK( ) const;
 
-  static void RegisterRoutingFunctions(booksim2::Interconnect* icnt) ;
+  static void RegisterRoutingFunctions(booksim2::Interface *itfc) ;
   double Capacity( ) const;
   void InsertRandomFaults( const Configuration &config );
 };
@@ -80,10 +81,10 @@ void ugal_pni_flatfly_onchip( const Router *r, const Flit *f, int in_channel,
 void valiant_flatfly( const Router *r, const Flit *f, int in_channel,
 			  OutputSet *outputs, bool inject );
 
-int find_distance (booksim2::Interconnect* icnt, int src, int dest);
-int find_ran_intm (booksim2::Interconnect* icnt, int src, int dest);
-int flatfly_outport(booksim2::Interconnect* icnt, int dest, int rID);
-int flatfly_transformation(booksim2::Interconnect* icnt, int dest);
-int flatfly_outport_yx(booksim2::Interconnect* icnt, int dest, int rID);
+int find_distance (booksim2::Interface *itfc, int src, int dest);
+int find_ran_intm (booksim2::Interface *itfc, int src, int dest);
+int flatfly_outport(booksim2::Interface *itfc, int dest, int rID);
+int flatfly_transformation(booksim2::Interface *itfc, int dest);
+int flatfly_outport_yx(booksim2::Interface *itfc, int dest, int rID);
 
 #endif

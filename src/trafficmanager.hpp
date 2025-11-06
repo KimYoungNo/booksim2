@@ -43,21 +43,20 @@
 #include "routefunc.hpp"
 #include "outputset.hpp"
 #include "injection.hpp"
+#include "interface.hpp"
 
 //register the requests to a node
 class PacketReplyInfo;
-class booksim2::Interconnect;
 
 class TrafficManager : public Module {
 
 private:
+
   vector<vector<int> > _packet_size;
   vector<vector<int> > _packet_size_rate;
   vector<int> _packet_size_max_val;
 
 protected:
-  booksim2::Interconnect* icnt;
-
   int _nodes;
   int _routers;
   int _vcs;
@@ -115,9 +114,9 @@ protected:
   vector<vector<bool> > _qdrained;
   vector<vector<list<Flit *> > > _partial_packets;
 
-  vector<map<unsigned long long, Flit *> > _total_in_flight_flits;
-  vector<map<unsigned long long, Flit *> > _measured_in_flight_flits;
-  vector<map<unsigned long long, Flit *> > _retired_packets;
+  vector<map<int, Flit *> > _total_in_flight_flits;
+  vector<map<int, Flit *> > _measured_in_flight_flits;
+  vector<map<int, Flit *> > _retired_packets;
   bool _empty_network;
 
   bool _hold_switch_for_packet;
@@ -231,12 +230,12 @@ protected:
   vector<double> _warmup_threshold;
   vector<double> _acc_warmup_threshold;
 
-  unsigned long long _cur_id;
-  unsigned long long _cur_pid;
+  int _cur_id;
+  int _cur_pid;
   int _time;
 
-  set<unsigned long long > _flits_to_watch;
-  set<unsigned long long > _packets_to_watch;
+  set<int> _flits_to_watch;
+  set<int> _packets_to_watch;
 
   bool _print_csv_results;
 
@@ -261,45 +260,42 @@ protected:
   ostream * _max_credits_out;
 #endif
 
+booksim2::Interface *itfc;
+
   // ============ Internal methods ============ 
 protected:
-
-  virtual void _RetireFlit( Flit *f, int dest );
-
-  void _Inject();
-  virtual void _Step( );
-
-  bool _PacketsOutstanding( ) const;
-  
-  virtual int  _IssuePacket( int source, int cl );
-  virtual void _GeneratePacket( int source, int size, int cl, int time );
-
-  virtual void _ClearStats( );
-
-  void _ComputeStats( const vector<int> & stats, int *sum, int *min = NULL, int *max = NULL, int *min_pos = NULL, int *max_pos = NULL ) const;
-
   virtual bool _SingleSim( );
-
-  void _DisplayRemaining( ostream & os = cout ) const;
-  
-  void _LoadWatchList(const string & filename);
-
+  virtual void _ClearStats( );
   virtual void _UpdateOverallStats();
-
   virtual string _OverallStatsCSV(int c = 0) const;
 
+  //void _Inject();
+  void _DisplayRemaining( ostream & os = cout ) const;
+  void _LoadWatchList(const string & filename);
+  void _ComputeStats( const vector<int> & stats, int *sum, int *min = NULL, int *max = NULL, int *min_pos = NULL, int *max_pos = NULL ) const;
+
   int _GetNextPacketSize(int cl) const;
+  bool _PacketsOutstanding( ) const;
   double _GetAveragePacketSize(int cl) const;
+
+  virtual void _RetireFlit( Flit *f, int dest );
+  virtual void _GeneratePacket(typename booksim2::Interface::Type type,
+                               void* packet, uint64_t addr, int bytes,
+                               int header_size, uint32_t subnet, int cl, int time, int src, int dst);
+  virtual int  _IssuePacket( int source, int cl );
+  virtual void _Step();
+
+  vector<vector<vector<list<Flit *> > > > _input_queue;
+  uint32_t flit_size;
 
 public:
 
-  //static TrafficManager * New(Configuration const & config, 
-                              //vector<Network *> const & net);
-  static TrafficManager * New(Configuration const & config, 
-                              vector<Network *> const & net,
-                              booksim2::Interconnect* icnt = nullptr);
+  static TrafficManager *
+  New(booksim2::Interface *itfc,
+      const Configuration& config, const vector<Network *>& net);
 
-  TrafficManager( const Configuration &config, const vector<Network *> & net, booksim2::Interconnect* icnt = nullptr);
+  TrafficManager(booksim2::Interface *itfc,
+                 const Configuration& config, const vector<Network *>& net );
   virtual ~TrafficManager( );
 
   bool Run( );
@@ -313,6 +309,9 @@ public:
   inline int getTime() { return _time;}
   Stats * getStats(const string & name) { return _stats[name]; }
 
+  void Init();
+
+  friend class booksim2::Interface;
 };
 
 template<class T>

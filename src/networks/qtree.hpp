@@ -43,6 +43,7 @@
 #define _QTREE_HPP_
 #include <cassert>
 #include "network.hpp"
+#include "interface.hpp"
 
 class QTree : public Network {
 
@@ -58,8 +59,8 @@ class QTree : public Network {
 
 public:
 
-  QTree( const Configuration& config, const string & name, booksim2::Interconnect* icne );
-  static void RegisterRoutingFunctions(booksim2::Interconnect* icnt) ;
+  QTree( const Configuration& config, const string & name, booksim2::Interface *itfc );
+  static void RegisterRoutingFunctions(booksim2::Interface *itfc) ;
 
   static int HeightFromID( int id );
   static int PosFromID( int id );

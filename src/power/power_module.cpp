@@ -30,7 +30,6 @@
 #include "buffer_monitor.hpp"
 #include "switch_monitor.hpp"
 #include "iq_router.hpp"
-#include "Interconnect.hpp"
 
 Power_Module::Power_Module(Network * n , const Configuration &config)
   : Module( 0, "power_module" ){
@@ -446,8 +445,8 @@ double Power_Module:: areaOutputModule(double Outputs) {
     return channel_width * Adff * MetalPitch * MetalPitch ;
 }
 
-void Power_Module::run(){
-  totalTime = net->icnt->get_cycle();
+void Power_Module::run(booksim2::Interface *itfc){
+  totalTime = itfc->get_cycle();
   channelWirePower=0;
   channelClkPower=0;
   channelDFFPower=0;

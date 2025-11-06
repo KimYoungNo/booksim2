@@ -51,10 +51,9 @@
 
 #include "tree4.hpp"
 #include "misc_utils.hpp"
-#include "Interconnect.hpp"
 
-Tree4::Tree4( const Configuration& config, const string & name, booksim2::Interconnect* icnt )
-: Network ( config, name, icnt )
+Tree4::Tree4( const Configuration& config, const string & name, booksim2::Interface *itfc )
+: Network ( config, name, itfc )
 {
   _ComputeSize( config );
   _Alloc( );
@@ -70,7 +69,7 @@ void Tree4::_ComputeSize( const Configuration& config )
   _n = config.GetInt( "n" );
   assert(_n == 3);
   
-  icnt->gK = _k; icnt->gN = _n;
+  itfc->gK = _k; itfc->gN = _n;
   
   _nodes = powi( _k, _n );
   
@@ -83,7 +82,7 @@ void Tree4::_ComputeSize( const Configuration& config )
     * ( 2 * _k );                // Connectivity of Middle Routers
 }
 
-void Tree4::RegisterRoutingFunctions(booksim2::Interconnect* icnt){
+void Tree4::RegisterRoutingFunctions(booksim2::Interface *itfc){
 
 }
 
@@ -107,7 +106,7 @@ void Tree4::_BuildNet( const Configuration& config )
       name.str("");
       name << "router_" << h << "_" << pos;
       id = h * powi( _k, _n-1 ) + pos;
-      Router * r = Router::NewRouter( config, this, icnt, name.str( ),
+      Router * r = Router::NewRouter( config, this, itfc, name.str( ),
 				      id, degree, degree );
       _Router( h, pos ) = r;
       _timed_modules.push_back(r);

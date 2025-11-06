@@ -29,21 +29,12 @@
 #define _ROUTEFUNC_HPP_
 
 #include "flit.hpp"
-//#include "router.hpp"
+#include "router.hpp"
 #include "outputset.hpp"
 #include "config_utils.hpp"
-//#include "Interconnect.hpp"
-namespace booksim2 {
-class Interconnect;
-}
-void InitializeRoutingMap(booksim2::Interconnect* icnt, const Configuration &config);
+#include "interface.hpp"
 
-//extern map<string, tRoutingFunction> gRoutingFunctionMap;
-
-// extern int gNumVCs;
-// extern int gReadReqBeginVC, gReadReqEndVC;
-// extern int gWriteReqBeginVC, gWriteReqEndVC;
-// extern int gReadReplyBeginVC, gReadReplyEndVC;
-// extern int gWriteReplyBeginVC, gWriteReplyEndVC;
+void InitializeRoutingMap(booksim2::Interface *itfc,
+                          const Configuration & config );
 
 #endif

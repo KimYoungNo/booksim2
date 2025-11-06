@@ -28,21 +28,20 @@
 #include "booksim.hpp"
 #include <string>
 #include <sstream>
-#include <fstream>
+#include <iostream>
 #include <cstdlib>
 
 #include "chaos_router.hpp"
 #include "random_utils.hpp"
-#include "globals.hpp"
-#include "Interconnect.hpp"
+#include "interface.hpp"
 
 ChaosRouter::ChaosRouter( const Configuration& config,
-		    Module *parent, const string & name, int id,
-		    int inputs, int outputs, booksim2::Interconnect* icnt )
+		    Module *parent, booksim2::Interface *itfc, const string & name, int id,
+		    int inputs, int outputs )
   : Router( config,
-	    parent, name,
+	    parent, itfc, name,
 	    id,
-	    inputs, outputs, icnt )
+	    inputs, outputs )
 {
   int i;
 
@@ -61,8 +60,9 @@ ChaosRouter::ChaosRouter( const Configuration& config,
   // Routing
 
   string rf = config.GetStr("routing_function") + "_" + config.GetStr("topology");
-  map<string, tRoutingFunction>::iterator rf_iter = (icnt->gRoutingFunctionMap).find(rf);
-  if(rf_iter == (icnt->gRoutingFunctionMap).end()) {
+  map<string, tRoutingFunction>::iterator
+  rf_iter = (itfc->gRoutingFunctionMap).find(rf);
+  if(rf_iter == (itfc->gRoutingFunctionMap).end()) {
     Error("Invalid routing function: " + rf);
   }
   _rf = rf_iter->second;
@@ -139,7 +139,7 @@ void ChaosRouter::ReadInputs( )
       _input_frame[input].push( f );
 
       if ( f->watch ) {
-	*(icnt->gWatchOut) << icnt->get_cycle() << " | " << FullName() << " | "
+	*(itfc->gWatchOut) << itfc->get_cycle() << " | " << FullName() << " | "
 		    << "Flit arriving at " << FullName() 
 		    << " on channel " << input << endl
 		    << *f;
@@ -513,7 +513,7 @@ void ChaosRouter::_OutputAdvance( )
 	_crossbar_pipe->Write( f, _input_output_match[i] );
 	
 	if ( f->watch ) {
-	  *(icnt->gWatchOut) << icnt->get_cycle() << " | " << FullName() << " | "
+	  *(itfc->gWatchOut) << itfc->get_cycle() << " | " << FullName() << " | "
 		      << "Flit traversing crossbar from input queue " 
 		      << i << " at " 
 		      << FullName() << endl
@@ -554,7 +554,7 @@ void ChaosRouter::_OutputAdvance( )
 	_multi_queue[mq].push( f );
 	
 	if ( f->watch ) {
-	  *(icnt->gWatchOut) << icnt->get_cycle() << " | " << FullName() << " | "
+	  *(itfc->gWatchOut) << itfc->get_cycle() << " | " << FullName() << " | "
 		      << "Flit stored in multiqueue at " 
 		      << FullName() << endl
 		      << "State = " << _multi_state[mq] << endl
@@ -601,7 +601,7 @@ void ChaosRouter::_OutputAdvance( )
       _crossbar_pipe->Write( f, _multi_match[m] );
 
       if ( f->watch ) {
-	*(icnt->gWatchOut) << icnt->get_cycle() << " | " << FullName() << " | "
+	*(itfc->gWatchOut) << itfc->get_cycle() << " | " << FullName() << " | "
 		    << "Flit traversing crossbar from multiqueue slot "
 		    << m << " at " 
 		    << FullName() << endl

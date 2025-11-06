@@ -37,23 +37,19 @@
 #ifndef FLITCHANNEL_HPP
 #define FLITCHANNEL_HPP
 
-// ----------------------------------------------------------------------
-//  $Author: jbalfour $
-//  $Date: 2007/06/27 23:10:17 $
-//  $Id$
-// ----------------------------------------------------------------------
-
 #include "channel.hpp"
 #include "flit.hpp"
+#include "interface.hpp"
 
 using namespace std;
 
-class Router ;
-class booksim2::Interconnect;
+class Router;
 
 class FlitChannel : public Channel<Flit> {
 public:
-  FlitChannel(Module * parent, booksim2::Interconnect* icnt, string const & name, int classes);
+  FlitChannel(Module * parent,
+              booksim2::Interface *itfc,
+              string const & name, int classes);
 
   void SetSource(Router const * const router, int port) ;
   inline Router const * const GetSource() const {
@@ -80,8 +76,7 @@ public:
   virtual void WriteOutputs();
 
 private:
-  booksim2::Interconnect* icnt;
-  
+  booksim2::Interface *itfc;
   ////////////////////////////////////////
   //
   // Power Models OBSOLETE

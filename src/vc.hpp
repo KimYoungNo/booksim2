@@ -30,16 +30,12 @@
 
 #include <deque>
 
-#include "globals.hpp"
 #include "flit.hpp"
 #include "outputset.hpp"
 #include "routefunc.hpp"
 #include "config_utils.hpp"
-#include "module.hpp"
+#include "interface.hpp"
 
-namespace booksim2 {
-class Interconnect;
-}
 class VC : public Module {
 public:
   enum eVCState { state_min = 0, idle = state_min, routing, vc_alloc, active, 
@@ -50,7 +46,6 @@ public:
   static const char * const VCSTATE[];
   
 private:
-  booksim2::Interconnect* icnt;
 
   deque<Flit *> _buffer;
   
@@ -76,10 +71,12 @@ private:
 
   bool _lookahead_routing;
 
+  booksim2::Interface *itfc;
+
 public:
   
   VC( const Configuration& config, int outputs,
-      Module *parent, booksim2::Interconnect* icnt, const string& name );
+      Module *parent, booksim2::Interface *itfc, const string& name );
   ~VC();
 
   void AddFlit( Flit *f );

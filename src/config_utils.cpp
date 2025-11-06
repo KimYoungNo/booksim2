@@ -13,7 +13,7 @@
  other materials provided with the distribution.
 
  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
- ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT  LIMITED TO, THE IMPLIED
  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
@@ -36,10 +36,6 @@
 #include <sstream>
 #include <fstream>
 #include <cstdlib>
-#include <regex>
-
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/ini_parser.hpp>
 
 #include "config_utils.hpp"
 
@@ -54,16 +50,6 @@ Configuration::Configuration()
 void Configuration::AddStrField(string const & field, string const & value)
 {
   _str_map[field] = value;
-}
-
-void Configuration::AddIntField(string const & field, int const & value)
-{
-  _int_map[field] = value;
-}
-
-void Configuration::AddFloatField(string const & field, double const & value)
-{
-  _float_map[field] = value;
 }
 
 void Configuration::Assign(string const & field, string const & value)
@@ -161,39 +147,18 @@ vector<double> Configuration::GetFloatArray(string const & field) const
 
 void Configuration::ParseFile(string const & filename)
 {
-
-  try { 
-    std::regex _int("-?[0-9]+");
-    std::regex _float_1("-?[0-9]*\\.[0-9]+");
-    std::regex _float_2("-?([0-9]*\\.)?[0-9]+[eE][+-]?[0-9]+?");
-    //std::regex _str("[A-Za-z_\\-/\\.][A-Za-z0-9_\\-/\\.\\+(\\{\\,)\\}]*");
-    boost::property_tree::ptree pt;
-    boost::property_tree::ini_parser::read_ini(filename, pt);
-    for (auto& section: pt) {
-      for (auto& data: section.second) {
-        std::string key = data.first;
-        std::string val = data.second.get_value<std::string>();
-        if (std::regex_match(val, _int)) {
-          Assign(key, std::stoi(val));
-        } else if (std::regex_match(val, _float_1) ||
-                   std::regex_match(val, _float_2)) {
-          Assign(key, std::stod(val));
-        } else {
-          Assign(key, val);
-        }
-      }
-    }
-  } catch (const std::regex_error &err) {
-    std::cout << err.what() << std::endl;
-    std::cout << err.code() << std::endl;
+  if((_config_file = fopen(filename.c_str(), "r")) == 0) {
+    cerr << "Could not open configuration file " << filename << endl;
+    exit(-1);
   }
 
+  fclose(_config_file);
+  _config_file = 0;
 }
 
 void Configuration::ParseString(string const & str)
 {
   _config_string = str + ';';
-  //yyparse();
   _config_string = "";
 }
 
@@ -229,33 +194,6 @@ Configuration * Configuration::GetTheConfig()
   return theConfig;
 }
 
-//============================================================
-
-// extern "C" void config_error( char const * msg, int lineno )
-// {
-//   Configuration::GetTheConfig( )->ParseError( msg, lineno );
-// }
-//
-// extern "C" void config_assign_string( char const * field, char const * value )
-// {
-//   Configuration::GetTheConfig()->Assign(field, value);
-// }
-//
-// extern "C" void config_assign_int( char const * field, int value )
-// {
-//   Configuration::GetTheConfig()->Assign(field, value);
-// }
-//
-// extern "C" void config_assign_float( char const * field, double value )
-// {
-//   Configuration::GetTheConfig()->Assign(field, value);
-// }
-//
-// extern "C" int config_input(char * line, int max_size)
-// {
-//   return Configuration::GetTheConfig()->Input(line, max_size);
-// }
-//
 bool ParseArgs(Configuration * cf, int argc, char * * argv)
 {
   bool rc = false;

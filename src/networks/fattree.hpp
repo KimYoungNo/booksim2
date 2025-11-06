@@ -41,8 +41,8 @@
 #ifndef _FatTree_HPP_
 #define _FatTree_HPP_
 
-#include "globals.hpp"
 #include "network.hpp"
+#include "interface.hpp"
 
 class FatTree : public Network {
 
@@ -64,8 +64,8 @@ class FatTree : public Network {
 
 public:
 
-  FatTree( const Configuration& config ,const string & name, booksim2::Interconnect* icnt );
-  static void RegisterRoutingFunctions(booksim2::Interconnect* icnt) ;
+  FatTree( const Configuration& config ,const string & name, booksim2::Interface *itfc );
+  static void RegisterRoutingFunctions(booksim2::Interface *itfc) ;
 
   //
   // Methods to Assit Routing Functions

@@ -40,11 +40,10 @@
 #include "flitchannel.hpp"
 #include "channel.hpp"
 #include "config_utils.hpp"
-#include "globals.hpp"
+#include "interface.hpp"
 
 typedef Channel<Credit> CreditChannel;
 
-class booksim2::Interconnect;
 
 class Network : public TimedModule {
 protected:
@@ -72,13 +71,13 @@ protected:
 
   void _Alloc( );
 
-
 public:
-  Network( const Configuration &config, const string & name, booksim2::Interconnect* icnt );
+  Network(const Configuration &config,
+          const string & name, booksim2::Interface *itfc );
   virtual ~Network( );
-  booksim2::Interconnect* icnt;
-
-  static Network *New( const Configuration &config, const string & name, booksim2::Interconnect* icnt);
+  booksim2::Interface *itfc;
+  static Network *New(const Configuration &config,
+                      const string & name, booksim2::Interface *itfc );
 
   virtual void WriteFlit( Flit *f, int source );
   virtual Flit *ReadFlit( int dest );

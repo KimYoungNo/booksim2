@@ -53,26 +53,8 @@ ostream& operator<<( ostream& os, const Flit& f )
   return os;
 }
 
-Flit::Flit() 
-    : type(ANY_TYPE),
-      vc(0),
-      cl(0),
-      head(false),
-      tail(false),
-      ctime(0),
-      itime(0),
-      atime(0),
-      id(0),
-      pid(0),
-      record(false),
-      src(0),
-      dest(0),
-      pri(0),
-      hops(0),
-      watch(false),
-      subnetwork(0),
-      size(0),
-      data(nullptr) {  
+Flit::Flit()
+{  
   Reset();
 }  
 
@@ -97,7 +79,9 @@ void Flit::Reset()
   pri = 0;
   intm =-1;
   ph = -1;
-  data = 0;
+  data = nullptr;
+  payload_size = 0;
+  size = 0;
 }  
 
 Flit * Flit::New() {

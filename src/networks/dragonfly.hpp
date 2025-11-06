@@ -28,9 +28,9 @@
 #ifndef _DragonFly_HPP_
 #define _DragonFly_HPP_
 
-#include "globals.hpp"
 #include "network.hpp"
 #include "routefunc.hpp"
+#include "interface.hpp"
 
 class DragonFlyNew : public Network {
 
@@ -55,13 +55,13 @@ class DragonFlyNew : public Network {
 
  
 public:
-  DragonFlyNew( const Configuration &config, const string & name, booksim2::Interconnect* icnt );
+  DragonFlyNew( const Configuration &config, const string & name, booksim2::Interface *itfc );
 
   int GetN( ) const;
   int GetK( ) const;
 
   double Capacity( ) const;
-  static void RegisterRoutingFunctions(booksim2::Interconnect* icnt);
+  static void RegisterRoutingFunctions(booksim2::Interface *itfc);
   void InsertRandomFaults( const Configuration &config );
 
 };

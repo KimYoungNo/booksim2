@@ -35,23 +35,33 @@
 #include "booksim.hpp"
 #include "booksim_config.hpp"
 #include "trafficmanager.hpp"
-#include "batchtrafficmanager.hpp"
-#include "GNNTrafficManager.hpp"
 #include "random_utils.hpp" 
 #include "vc.hpp"
 #include "packet_reply_info.hpp"
-#include "Interconnect.hpp"
+#include "interface.hpp"
 
-TrafficManager * TrafficManager::New(Configuration const & config,
-                                     vector<Network *> const & net,
-                                     booksim2::Interconnect* icnt)
+TrafficManager *
+TrafficManager::New(booksim2::Interface *itfc,
+                    const Configuration& config,
+                    const vector<Network *>& net)
 {
-    return new GNNTrafficManager(config, net, icnt);
+    return new TrafficManager(itfc, config, net);
 }
 
-TrafficManager::TrafficManager( const Configuration &config, const vector<Network *> & net,
-                               booksim2::Interconnect* icnt)
-    : Module( 0, "traffic_manager" ), icnt(icnt), _net(net), _empty_network(false), _deadlock_timer(0), _reset_time(0), _drain_time(-1), _cur_id(0), _cur_pid(0), _time(0)
+void TrafficManager::Init()
+{
+    _time = 0;
+    _sim_state = running;
+    this->_ClearStats( );
+}
+
+TrafficManager::TrafficManager(booksim2::Interface *itfc,
+                               const Configuration& config,
+                               const vector<Network *>& net )
+    : Module( 0, "traffic_manager" ), itfc(itfc),
+    _net(net), _empty_network(false),
+    _deadlock_timer(0), _reset_time(0),
+    _drain_time(-1), _cur_id(0), _cur_pid(0), _time(0)
 {
 
     _nodes = _net[0]->NumNodes( );
@@ -93,8 +103,9 @@ TrafficManager::TrafficManager( const Configuration &config, const vector<Networ
     // ============ Routing ============ 
 
     string rf = config.GetStr("routing_function") + "_" + config.GetStr("topology");
-    map<string, tRoutingFunction>::const_iterator rf_iter = (icnt->gRoutingFunctionMap).find(rf);
-    if(rf_iter == (icnt->gRoutingFunctionMap).end()) {
+    map<string, tRoutingFunction>::const_iterator
+    rf_iter = itfc->gRoutingFunctionMap.find(rf);
+    if(rf_iter == itfc->gRoutingFunctionMap.end()) {
         Error("Invalid routing function: " + rf);
     }
     _rf = rf_iter->second;
@@ -240,7 +251,7 @@ TrafficManager::TrafficManager( const Configuration &config, const vector<Networ
         for ( int subnet = 0; subnet < _subnets; ++subnet ) {
             ostringstream tmp_name;
             tmp_name << "terminal_buf_state_" << source << "_" << subnet;
-            BufferState * bs = new BufferState( config, this, icnt, tmp_name.str( ) );
+            BufferState * bs = new BufferState( config, this, itfc, tmp_name.str( ) );
             int vc_alloc_delay = config.GetInt("vc_alloc_delay");
             int sw_alloc_delay = config.GetInt("sw_alloc_delay");
             int router_latency = config.GetInt("routing_delay") + (config.GetInt("speculative") ? max(vc_alloc_delay, sw_alloc_delay) : (vc_alloc_delay + sw_alloc_delay));
@@ -577,8 +588,16 @@ TrafficManager::TrafficManager( const Configuration &config, const vector<Networ
     _slowest_flit.resize(_classes, -1);
     _slowest_packet.resize(_classes, -1);
 
- 
-
+    _total_sims = 0;
+  
+    _input_queue.resize(_subnets);
+    for ( int subnet = 0; subnet < _subnets; ++subnet)
+    {
+        _input_queue[subnet].resize(_nodes);
+        for ( int node = 0; node < _nodes; ++node )
+            _input_queue[subnet][node].resize(_classes);
+    }
+    flit_size = config.GetInt("flit_size");
 }
 
 TrafficManager::~TrafficManager( )
@@ -610,8 +629,10 @@ TrafficManager::~TrafficManager( )
         }
     }
   
-    if((icnt->gWatchOut) && ((icnt->gWatchOut) != &cout)) delete (icnt->gWatchOut);
-    if(_stats_out && (_stats_out != &cout)) delete _stats_out;
+    if(itfc->gWatchOut && (itfc->gWatchOut != &cout))
+        delete (itfc->gWatchOut);
+    if(_stats_out && (_stats_out != &cout))
+        delete _stats_out;
 
 #ifdef TRACK_FLOWS
     if(_injected_flits_out) delete _injected_flits_out;
@@ -648,15 +669,16 @@ void TrafficManager::_RetireFlit( Flit *f, int dest )
     }
 
     if ( f->watch ) { 
-        *(icnt->gWatchOut) << icnt->get_cycle() << " | "
-                   << "node" << dest << " | "
-                   << "Retiring flit " << f->id 
-                   << " (packet " << f->pid
-                   << ", src = " << f->src 
-                   << ", dest = " << f->dest
-                   << ", hops = " << f->hops
-                   << ", flat = " << f->atime - f->itime
-                   << ")." << endl;
+        *(itfc->gWatchOut)
+            << itfc->get_cycle() << " | "
+            << "node" << dest << " | "
+            << "Retiring flit " << f->id 
+            << " (packet " << f->pid
+            << ", src = " << f->src 
+            << ", dest = " << f->dest
+            << ", hops = " << f->hops
+            << ", flat = " << f->atime - f->itime
+            << ")." << endl;
     }
 
     if ( f->head && ( f->dest != dest ) ) {
@@ -678,7 +700,8 @@ void TrafficManager::_RetireFlit( Flit *f, int dest )
         if(f->head) {
             head = f;
         } else {
-            map<unsigned long long, Flit *>::iterator iter = _retired_packets[f->cl].find(f->pid);
+            map<int, Flit *>::iterator
+            iter = _retired_packets[f->cl].find(f->pid);
             assert(iter != _retired_packets[f->cl].end());
             head = iter->second;
             _retired_packets[f->cl].erase(iter);
@@ -686,34 +709,25 @@ void TrafficManager::_RetireFlit( Flit *f, int dest )
             assert(f->pid == head->pid);
         }
         if ( f->watch ) { 
-            *(icnt->gWatchOut) << icnt->get_cycle() << " | "
-                       << "node" << dest << " | "
-                       << "Retiring packet " << f->pid 
-                       << " (plat = " << f->atime - head->ctime
-                       << ", nlat = " << f->atime - head->itime
-                       << ", frag = " << (f->atime - head->atime) - (f->id - head->id) // NB: In the spirit of solving problems using ugly hacks, we compute the packet length by taking advantage of the fact that the IDs of flits within a packet are contiguous.
-                       << ", src = " << head->src 
-                       << ", dest = " << head->dest
-                       << ")." << endl;
+            *(itfc->gWatchOut)
+                << itfc->get_cycle() << " | "
+                << "node" << dest << " | "
+                << "Retiring packet " << f->pid 
+                << " (plat = " << f->atime - head->ctime
+                << ", nlat = " << f->atime - head->itime
+                << ", frag = " << (f->atime - head->atime) - (f->id - head->id) // NB: In the spirit of solving problems using ugly hacks, we compute the packet length by taking advantage of the fact that the IDs of flits within a packet are contiguous.
+                << ", src = " << head->src 
+                << ", dest = " << head->dest
+                << ")." << endl;
         }
 
-        //code the source of request, look carefully, its tricky ;)
-        if (f->type == Flit::READ_REQUEST || f->type == Flit::WRITE_REQUEST) {
-            PacketReplyInfo* rinfo = PacketReplyInfo::New();
-            rinfo->source = f->src;
-            rinfo->time = f->atime;
-            rinfo->record = f->record;
-            rinfo->type = f->type;
-            _repliesPending[dest].push_back(rinfo);
-        } else {
-            if(f->type == Flit::READ_REPLY || f->type == Flit::WRITE_REPLY  ){
-                _requestsOutstanding[dest]--;
-            } else if(f->type == Flit::ANY_TYPE) {
-                _requestsOutstanding[f->src]--;
-            }
-      
+        if(f->type == Flit::READ_REPLY || f->type == Flit::WRITE_REPLY  ){
+            _requestsOutstanding[dest]--;
+        } else if(f->type == Flit::ANY_TYPE) {
+            ostringstream err;
+            err << "Flit " << f->id << " cannot be ANY_TYPE" ;
+            Error( err.str( ) );
         }
-
         // Only record statistics once per packet (at tail)
         // and based on the simulation state
         if ( ( _sim_state == warming_up ) || f->record ) {
@@ -777,51 +791,34 @@ int TrafficManager::_IssuePacket( int source, int cl )
     return result;
 }
 
-void TrafficManager::_GeneratePacket( int source, int stype, 
-                                      int cl, int time )
+void TrafficManager::_GeneratePacket(typename booksim2::Interface::Type type,
+                                     void* packet, uint64_t addr, int bytes,
+                                     int header_size, uint32_t subnet, int cl, int time, int src, int dst)
 {
-    assert(stype!=0);
-
-    Flit::FlitType packet_type = Flit::ANY_TYPE;
     int size = _GetNextPacketSize(cl); //input size 
     int pid = _cur_pid++;
-    assert(_cur_pid);
-    int packet_destination = _traffic_pattern[cl]->dest(source);
+    assert(_cur_pid > 0);
+    int packet_destination = dst;
     bool record = false;
-    bool watch = (icnt->gWatchOut) && (_packets_to_watch.count(pid) > 0);
-    if(_use_read_write[cl]){
-        if(stype > 0) {
-            if (stype == 1) {
-                packet_type = Flit::READ_REQUEST;
-                size = _read_request_size[cl];
-            } else if (stype == 2) {
-                packet_type = Flit::WRITE_REQUEST;
-                size = _write_request_size[cl];
-            } else {
-                ostringstream err;
-                err << "Invalid packet type: " << packet_type;
-                Error( err.str( ) );
-            }
-        } else {
-            PacketReplyInfo* rinfo = _repliesPending[source].front();
-            if (rinfo->type == Flit::READ_REQUEST) {//read reply
-                size = _read_reply_size[cl];
-                packet_type = Flit::READ_REPLY;
-            } else if(rinfo->type == Flit::WRITE_REQUEST) {  //write reply
-                size = _write_reply_size[cl];
-                packet_type = Flit::WRITE_REPLY;
-            } else {
-                ostringstream err;
-                err << "Invalid packet type: " << rinfo->type;
-                Error( err.str( ) );
-            }
-            packet_destination = rinfo->source;
-            time = rinfo->time;
-            record = rinfo->record;
-            _repliesPending[source].pop_front();
-            rinfo->Free();
-        }
+    bool watch = (itfc->gWatchOut) && (_packets_to_watch.count(pid) > 0);
+    typename Flit::FlitType packet_type;
+
+    if (type == booksim2::Interface::Type::READ) {
+        packet_type = Flit::READ_REQUEST;
+    } else if (type == booksim2::Interface::Type::WRITE) {
+        packet_type = Flit::WRITE_REQUEST;
+    } else if (type == booksim2::Interface::Type::READ_REPLY) {
+        packet_type = Flit::READ_REPLY;
+    } else if (type == booksim2::Interface::Type::WRITE_REPLY) {
+        packet_type = Flit::WRITE_REPLY;
+        assert(false && "No write reply currently");
+    } else {
+        packet_type = Flit::ANY_TYPE;
+        cout << "Packet type is undefined." << endl;
+        assert(0 && "Type is undefined");
     }
+    int pkt_size = bytes + header_size;
+    int num_flits = (pkt_size / flit_size) + ((pkt_size % flit_size) ? 1 : 0);
 
     if ((packet_destination <0) || (packet_destination >= _nodes)) {
         ostringstream err;
@@ -835,46 +832,53 @@ void TrafficManager::_GeneratePacket( int source, int stype,
         record = _measure_stats[cl];
     }
 
-    int subnetwork = ((packet_type == Flit::ANY_TYPE) ? 
-                      RandomInt(_subnets-1) :
-                      _subnet[packet_type]);
+    int subnetwork = subnet;
   
     if ( watch ) { 
-        *(icnt->gWatchOut) << icnt->get_cycle() << " | "
-                   << "node" << source << " | "
-                   << "Enqueuing packet " << pid
-                   << " at time " << time
-                   << "." << endl;
+        *(itfc->gWatchOut)
+            << itfc->get_cycle() << " | "
+            << "node" << src << " | "
+            << "Enqueuing packet " << pid
+            << " at time " << time
+            << "." << endl;
     }
   
-    for ( int i = 0; i < size; ++i ) {
+    for ( int i = 0; i < num_flits; ++i ) {
+        bool is_tail = (i == (num_flits-1));
         Flit * f  = Flit::New();
         f->id     = _cur_id++;
         assert(_cur_id);
         f->pid    = pid;
-        f->watch  = watch | ((icnt->gWatchOut) && (_flits_to_watch.count(f->id) > 0));
+        f->watch  = watch | ((itfc->gWatchOut) &&
+                             (_flits_to_watch.count(f->id) > 0));
         f->subnetwork = subnetwork;
-        f->src    = source;
+        f->src    = src;
         f->ctime  = time;
         f->record = record;
         f->cl     = cl;
+        f->payload_size = bytes;
+        if (is_tail && (pkt_size % flit_size != 0)) {
+            f->size = pkt_size % flit_size;
+        } else {
+            f->size = flit_size;
+        }
+        f->data = is_tail ? packet : nullptr;
 
         _total_in_flight_flits[f->cl].insert(make_pair(f->id, f));
         if(record) {
             _measured_in_flight_flits[f->cl].insert(make_pair(f->id, f));
         }
     
-        if(icnt->gTrace){
+        if(itfc->gTrace){
             cout<<"New Flit "<<f->src<<endl;
         }
         f->type = packet_type;
+        f->head = (i==0);
 
-        if ( i == 0 ) { // Head flit
-            f->head = true;
+        if ( f->head) { // Head flit
             //packets are only generated to nodes smaller or equal to limit
             f->dest = packet_destination;
         } else {
-            f->head = false;
             f->dest = -1;
         }
         switch( _pri_type ) {
@@ -887,33 +891,29 @@ void TrafficManager::_GeneratePacket( int source, int stype,
             assert(f->pri >= 0);
             break;
         case sequence_based:
-            f->pri = numeric_limits<int>::max() - _packet_seq_no[source];
+            f->pri = numeric_limits<int>::max() - _packet_seq_no[src];
             assert(f->pri >= 0);
             break;
         default:
             f->pri = 0;
         }
-        if ( i == ( size - 1 ) ) { // Tail flit
-            f->tail = true;
-        } else {
-            f->tail = false;
-        }
-    
+        f->tail = is_tail;
         f->vc  = -1;
 
         if ( f->watch ) { 
-            *(icnt->gWatchOut) << icnt->get_cycle() << " | "
-                       << "node" << source << " | "
-                       << "Enqueuing flit " << f->id
-                       << " (packet " << f->pid
-                       << ") at time " << time
-                       << "." << endl;
+            *(itfc->gWatchOut)
+                << itfc->get_cycle() << " | "
+                << "node" << src << " | "
+                << "Enqueuing flit " << f->id
+                << " (packet " << f->pid
+                << ") at time " << time
+                << "." << endl;
         }
 
-        _partial_packets[source][cl].push_back( f );
+        _input_queue[subnet][src][cl].push_back( f );
     }
 }
-
+/*
 void TrafficManager::_Inject(){
 
     for ( int input = 0; input < _nodes; ++input ) {
@@ -927,8 +927,7 @@ void TrafficManager::_Inject(){
 	  
                     if ( stype != 0 ) { //generate a packet
                         _GeneratePacket( input, stype, c, 
-                                         _include_queuing==1 ? 
-                                         _qtime[input][c] : _time );
+                                         _include_queuing==1 ? _qtime[input][c] : _time );
                         generated = true;
                     }
                     // only advance time if this is not a reply packet
@@ -945,7 +944,7 @@ void TrafficManager::_Inject(){
         }
     }
 }
-
+*/
 void TrafficManager::_Step( )
 {
     bool flits_in_flight = false;
@@ -964,22 +963,38 @@ void TrafficManager::_Step( )
             Flit * const f = _net[subnet]->ReadFlit( n );
             if ( f ) {
                 if(f->watch) {
-                    *(icnt->gWatchOut) << icnt->get_cycle() << " | "
-                               << "node" << n << " | "
-                               << "Ejecting flit " << f->id
-                               << " (packet " << f->pid << ")"
-                               << " from VC " << f->vc
-                               << "." << endl;
+                    *(itfc->gWatchOut)
+                        << itfc->get_cycle() << " | "
+                        << "node" << n << " | "
+                        << "Ejecting flit " << f->id
+                        << " (packet " << f->pid << ")"
+                        << " from VC " << f->vc
+                        << "." << endl;
                 }
-                flits[subnet].insert(make_pair(n, f));
+                itfc->WriteOutBuffer(subnet, n, f);
+            }
+            itfc->Transfer2BoundaryBuffer(subnet, n);
+            Flit* const ejected_flit = itfc->GetEjectedFlit(subnet, n);
+            if (ejected_flit) {
+                if(ejected_flit->head)
+                    assert(ejected_flit->dest == n);
+                if(ejected_flit->watch) {
+                    *(itfc->gWatchOut)
+                        << itfc->get_cycle() << " | "
+                        << "node" << n << " | "
+                        << "Ejected flit " << ejected_flit->id
+                        << " (packet " << ejected_flit->pid
+                        << " VC " << ejected_flit->vc << ")"
+                        << "from ejection buffer." << endl;
+                }
+                flits[subnet].insert(make_pair(n, ejected_flit));
+
                 if((_sim_state == warming_up) || (_sim_state == running)) {
-                    ++_accepted_flits[f->cl][n];
-                    if(f->tail) {
-                        ++_accepted_packets[f->cl][n];
-                    }
+                    ++_accepted_flits[ejected_flit->cl][n];
+                    if(ejected_flit->tail) 
+                        ++_accepted_packets[ejected_flit->cl][n];
                 }
             }
-
             Credit * const c = _net[subnet]->ReadCredit( n );
             if ( c ) {
 #ifdef TRACK_FLOWS
@@ -999,9 +1014,6 @@ void TrafficManager::_Step( )
         _net[subnet]->ReadInputs( );
     }
   
-    if ( !_empty_network ) {
-        _Inject();
-    }
 
     for(int subnet = 0; subnet < _subnets; ++subnet) {
 
@@ -1016,7 +1028,7 @@ void TrafficManager::_Step( )
             int class_limit = _classes;
 
             if(_hold_switch_for_packet) {
-                list<Flit *> const & pp = _partial_packets[n][last_class];
+                list<Flit *> const & pp = _input_queue[subnet][n][last_class];
                 if(!pp.empty() && !pp.front()->head && 
                    !dest_buf->IsFullFor(pp.front()->vc)) {
                     f = pp.front();
@@ -1032,7 +1044,7 @@ void TrafficManager::_Step( )
 
                 int const c = (last_class + i) % _classes;
 
-                list<Flit *> const & pp = _partial_packets[n][c];
+                list<Flit *> const & pp = _input_queue[subnet][n][c];
 
                 if(pp.empty()) {
                     continue;
@@ -1041,19 +1053,16 @@ void TrafficManager::_Step( )
                 Flit * const cf = pp.front();
                 assert(cf);
                 assert(cf->cl == c);
-	
-                if(cf->subnetwork != subnet) {
-                    continue;
-                }
+                assert(cf->subnetwork == subnet);
 
                 if(f && (f->pri >= cf->pri)) {
                     continue;
                 }
 
                 if(cf->head && cf->vc == -1) { // Find first available VC
-	  
-                    const FlitChannel * inject = _net[subnet]->GetInject(n);
-                    const Router * router = inject->GetSink();
+                    const FlitChannel *inject = _net[subnet]->GetInject(n);
+                    const Router *router = inject->GetSink();
+                    assert(router);
                     OutputSet route_set;
                     _rf(router, cf, -1, &route_set, true);
                     set<OutputSet::sSetElement> const & os = route_set.GetSet();
@@ -1065,9 +1074,6 @@ void TrafficManager::_Step( )
                     int vc_count = vc_end - vc_start + 1;
                     if(_noq) {
                         assert(_lookahead_routing);
-                        //const FlitChannel * inject = _net[subnet]->GetInject(n);
-                        //const Router * router = inject->GetSink();
-                        assert(router);
                         int in_channel = inject->GetSinkPort();
 
                         // NOTE: Because the lookahead is not for injection, but for the 
@@ -1078,10 +1084,11 @@ void TrafficManager::_Step( )
                         cf->vc = -1;
 
                         if(cf->watch) {
-                            *(icnt->gWatchOut) << icnt->get_cycle() << " | "
-                                       << "node" << n << " | "
-                                       << "Generating lookahead routing info for flit " << cf->id
-                                       << " (NOQ)." << endl;
+                            *(itfc->gWatchOut)
+                                << itfc->get_cycle() << " | "
+                                << "node" << n << " | "
+                                << "Generating lookahead routing info for flit " << cf->id
+                                << " (NOQ)." << endl;
                         }
                         set<OutputSet::sSetElement> const sl = cf->la_route_set.GetSet();
                         assert(sl.size() == 1);
@@ -1094,9 +1101,11 @@ void TrafficManager::_Step( )
                         assert(vc_start <= vc_end);
                     }
                     if(cf->watch) {
-                        *(icnt->gWatchOut) << icnt->get_cycle() << " | " << FullName() << " | "
-                                   << "Finding output VC for flit " << cf->id
-                                   << ":" << endl;
+                        *(itfc->gWatchOut)
+                            << itfc->get_cycle() << " | "
+                            << FullName() << " | "
+                            << "Finding output VC for flit " << cf->id
+                            << ":" << endl;
                     }
                     for(int i = 1; i <= vc_count; ++i) {
                         int const lvc = _last_vc[n][subnet][c];
@@ -1107,19 +1116,25 @@ void TrafficManager::_Step( )
                         assert((vc >= vc_start) && (vc <= vc_end));
                         if(!dest_buf->IsAvailableFor(vc)) {
                             if(cf->watch) {
-                                *(icnt->gWatchOut) << icnt->get_cycle() << " | " << FullName() << " | "
-                                           << "  Output VC " << vc << " is busy." << endl;
+                                *(itfc->gWatchOut)
+                                    << itfc->get_cycle() << " | "
+                                    << FullName() << " | "
+                                    << "  Output VC " << vc << " is busy." << endl;
                             }
                         } else {
                             if(dest_buf->IsFullFor(vc)) {
                                 if(cf->watch) {
-                                    *(icnt->gWatchOut) << icnt->get_cycle() << " | " << FullName() << " | "
-                                               << "  Output VC " << vc << " is full." << endl;
+                                    *(itfc->gWatchOut) 
+                                        << itfc->get_cycle() << " | "
+                                        << FullName() << " | "
+                                        << "  Output VC " << vc << " is full." << endl;
                                 }
                             } else {
                                 if(cf->watch) {
-                                    *(icnt->gWatchOut) << icnt->get_cycle() << " | " << FullName() << " | "
-                                               << "  Selected output VC " << vc << "." << endl;
+                                    *(itfc->gWatchOut)
+                                        << itfc->get_cycle() << " | "
+                                        << FullName() << " | "
+                                        << "  Selected output VC " << vc << "." << endl;
                                 }
                                 cf->vc = vc;
                                 break;
@@ -1130,17 +1145,21 @@ void TrafficManager::_Step( )
 	
                 if(cf->vc == -1) {
                     if(cf->watch) {
-                        *(icnt->gWatchOut) << icnt->get_cycle() << " | " << FullName() << " | "
-                                   << "No output VC found for flit " << cf->id
-                                   << "." << endl;
+                        *(itfc->gWatchOut)
+                            << itfc->get_cycle() << " | "
+                            << FullName() << " | "
+                            << "No output VC found for flit " << cf->id
+                            << "." << endl;
                     }
                 } else {
                     if(dest_buf->IsFullFor(cf->vc)) {
                         if(cf->watch) {
-                            *(icnt->gWatchOut) << icnt->get_cycle() << " | " << FullName() << " | "
-                                       << "Selected output VC " << cf->vc
-                                       << " is full for flit " << cf->id
-                                       << "." << endl;
+                            *(itfc->gWatchOut)
+                                << itfc->get_cycle() << " | "
+                                << FullName() << " | "
+                                << "Selected output VC " << cf->vc
+                                << " is full for flit " << cf->id
+                                << "." << endl;
                         }
                     } else {
                         f = cf;
@@ -1164,16 +1183,18 @@ void TrafficManager::_Step( )
                             int in_channel = inject->GetSinkPort();
                             _rf(router, f, in_channel, &f->la_route_set, false);
                             if(f->watch) {
-                                *(icnt->gWatchOut) << icnt->get_cycle() << " | "
-                                           << "node" << n << " | "
-                                           << "Generating lookahead routing info for flit " << f->id
-                                           << "." << endl;
+                                *(itfc->gWatchOut)
+                                    << itfc->get_cycle() << " | "
+                                    << "node" << n << " | "
+                                    << "Generating lookahead routing info for flit " << f->id
+                                    << "." << endl;
                             }
                         } else if(f->watch) {
-                            *(icnt->gWatchOut) << icnt->get_cycle() << " | "
-                                       << "node" << n << " | "
-                                       << "Already generated lookahead routing info for flit " << f->id
-                                       << " (NOQ)." << endl;
+                            *(itfc->gWatchOut)
+                                << itfc->get_cycle() << " | "
+                                << "node" << n << " | "
+                                << "Already generated lookahead routing info for flit " << f->id
+                                << " (NOQ)." << endl;
                         }
                     } else {
                         f->la_route_set.Clear();
@@ -1185,7 +1206,7 @@ void TrafficManager::_Step( )
 	
                 _last_class[n][subnet] = c;
 
-                _partial_packets[n][c].pop_front();
+                _input_queue[subnet][n][c].pop_front();
 
 #ifdef TRACK_FLOWS
                 ++_outstanding_credits[c][subnet][n];
@@ -1200,19 +1221,20 @@ void TrafficManager::_Step( )
                 }
 	
                 if(f->watch) {
-                    *(icnt->gWatchOut) << icnt->get_cycle() << " | "
-                               << "node" << n << " | "
-                               << "Injecting flit " << f->id
-                               << " into subnet " << subnet
-                               << " at time " << _time
-                               << " with priority " << f->pri
-                               << "." << endl;
+                    *(itfc->gWatchOut)
+                        << itfc->get_cycle() << " | "
+                        << "node" << n << " | "
+                        << "Injecting flit " << f->id
+                        << " into subnet " << subnet
+                        << " at time " << _time
+                        << " with priority " << f->pri
+                        << "." << endl;
                 }
                 f->itime = _time;
 
                 // Pass VC "back"
-                if(!_partial_packets[n][c].empty() && !f->tail) {
-                    Flit * const nf = _partial_packets[n][c].front();
+                if(!_input_queue[subnet][n][c].empty() && !f->tail) {
+                    Flit * const nf = _input_queue[subnet][n][c].front();
                     nf->vc = f->vc;
                 }
 	
@@ -1241,11 +1263,12 @@ void TrafficManager::_Step( )
 
                 f->atime = _time;
                 if(f->watch) {
-                    *(icnt->gWatchOut) << icnt->get_cycle() << " | "
-                               << "node" << n << " | "
-                               << "Injecting credit for VC " << f->vc 
-                               << " into subnet " << subnet 
-                               << "." << endl;
+                    *(itfc->gWatchOut)
+                        << itfc->get_cycle() << " | "
+                        << "node" << n << " | "
+                        << "Injecting credit for VC " << f->vc 
+                        << " into subnet " << subnet 
+                        << "." << endl;
                 }
                 Credit * const c = Credit::New();
                 c->vc.insert(f->vc);
@@ -1265,10 +1288,8 @@ void TrafficManager::_Step( )
 
     ++_time;
     assert(_time);
-    if(icnt->gTrace){
+    if(itfc->gTrace)
         cout<<"TIME "<<_time<<endl;
-    }
-
 }
   
 bool TrafficManager::_PacketsOutstanding( ) const
@@ -1381,7 +1402,7 @@ void TrafficManager::_DisplayRemaining( ostream & os ) const
 {
     for(int c = 0; c < _classes; ++c) {
 
-        map<unsigned long long, Flit *>::const_iterator iter;
+        map<int, Flit *>::const_iterator iter;
         int i;
 
         os << "Class " << c << ":" << endl;
@@ -1464,7 +1485,7 @@ bool TrafficManager::_SingleSim( )
             double latency = (double)_plat_stats[c]->Sum();
             double count = (double)_plat_stats[c]->NumSamples();
       
-            map<unsigned long long, Flit *>::const_iterator iter;
+            map<int, Flit *>::const_iterator iter;
             for(iter = _total_in_flight_flits[c].begin(); 
                 iter != _total_in_flight_flits[c].end(); 
                 iter++) {
@@ -1569,7 +1590,7 @@ bool TrafficManager::_SingleSim( )
                         double acc_latency = _plat_stats[c]->Sum();
                         double acc_count = (double)_plat_stats[c]->NumSamples();
 	    
-                        map<unsigned long long, Flit *>::const_iterator iter;
+                        map<int, Flit *>::const_iterator iter;
                         for(iter = _total_in_flight_flits[c].begin(); 
                             iter != _total_in_flight_flits[c].end(); 
                             iter++) {

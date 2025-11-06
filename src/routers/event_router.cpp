@@ -27,22 +27,20 @@
 
 #include <string>
 #include <sstream>
-#include <fstream>
+#include <iostream>
 #include <cstdlib>
 #include <cassert>
 
 #include "event_router.hpp"
 #include "stats.hpp"
-#include "globals.hpp"
-#include "Interconnect.hpp"
 
 EventRouter::EventRouter( const Configuration& config,
-		    Module *parent, const string & name, int id,
-		    int inputs, int outputs, booksim2::Interconnect* icnt )
+		    Module *parent, booksim2::Interface *itfc, const string & name, int id,
+		    int inputs, int outputs )
   : Router( config,
-	    parent, name,
+	    parent, itfc, name,
 	    id,
-	    inputs, outputs, icnt )
+	    inputs, outputs )
 {
   ostringstream module_name;
   
@@ -57,8 +55,9 @@ EventRouter::EventRouter( const Configuration& config,
   // Routing
 
   string rf = config.GetStr("routing_function") + "_" + config.GetStr("topology");
-  map<string, tRoutingFunction>::iterator rf_iter = (icnt->gRoutingFunctionMap).find(rf);
-  if(rf_iter == (icnt->gRoutingFunctionMap).end()) {
+  map<string, tRoutingFunction>::iterator
+  rf_iter = (itfc->gRoutingFunctionMap).find(rf);
+  if(rf_iter == (itfc->gRoutingFunctionMap).end()) {
     Error("Invalid routing function: " + rf);
   }
   _rf = rf_iter->second;
@@ -70,7 +69,7 @@ EventRouter::EventRouter( const Configuration& config,
 
   for ( int i = 0; i < _inputs; ++i ) {
     module_name << "buf_" << i;
-    _buf[i] = new Buffer( config, _outputs, this, icnt, module_name.str( ) );
+    _buf[i] = new Buffer( config, _outputs, this, itfc, module_name.str( ) );
     module_name.seekp( 0, ios::beg );
     _active[i].resize(_vcs, false);
   }
@@ -355,7 +354,7 @@ void EventRouter::_IncomingFlits( )
       }
       
       if ( f->watch ) {
-	*(icnt->gWatchOut) << icnt->get_cycle() << " | " << FullName() << " | "
+	*(itfc->gWatchOut) << itfc->get_cycle() << " | " << FullName() << " | "
 		    << "Received flit at " << FullName() << ".  Output port = " 
 		    << cur_buf->GetOutputPort( vc ) << ", output VC = " 
 		    << cur_buf->GetOutputVC( vc ) << endl
@@ -679,7 +678,7 @@ void EventRouter::_TransportArb( int input )
     _credit_pipe->Write( c, input );
     
     if ( f->watch && c->tail ) {
-      *(icnt->gWatchOut) << icnt->get_cycle() << " | " << FullName() << " | "
+      *(itfc->gWatchOut) << itfc->get_cycle() << " | " << FullName() << " | "
 		  << FullName() << " sending tail credit back for flit " << f->id << endl;
     }
 
@@ -690,7 +689,7 @@ void EventRouter::_TransportArb( int input )
     _crossbar_pipe->Write( f, output );
 
     if ( f->watch ) {
-      *(icnt->gWatchOut) << icnt->get_cycle() << " | " << FullName() << " | "
+      *(itfc->gWatchOut) << itfc->get_cycle() << " | " << FullName() << " | "
 		  << "Forwarding flit through crossbar at " << FullName() << ":" << endl
 		  << *f;
     }  

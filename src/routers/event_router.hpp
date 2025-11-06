@@ -40,6 +40,7 @@
 #include "routefunc.hpp"
 #include "outputset.hpp"
 #include "pipefifo.hpp"
+#include "interface.hpp"
 
 class EventNextVCState : public Module {
 public:
@@ -162,8 +163,8 @@ class EventRouter : public Router {
 
 public:
   EventRouter( const Configuration& config,
-	       Module *parent, const string & name, int id,
-	       int inputs, int outputs, booksim2::Interconnect* icnt );
+	       Module *parent, booksim2::Interface *itfc, const string & name, int id,
+	       int inputs, int outputs );
   virtual ~EventRouter( );
 
   virtual void ReadInputs( );

@@ -30,8 +30,6 @@
 
 #include <iostream>
 #include <stack>
-#include <memory>
-
 #include "booksim.hpp"
 #include "outputset.hpp"
 
@@ -58,8 +56,8 @@ public:
   int  itime;
   int  atime;
 
-  unsigned long long id;
-  unsigned long long pid;
+  int  id;
+  int  pid;
 
   bool record;
 
@@ -83,7 +81,6 @@ public:
 
   // Fields for arbitrary data
   void* data ;
-  // std::unique_ptr<void> data ;
 
   // Lookahead route info
   OutputSet la_route_set;

@@ -28,8 +28,8 @@
 #ifndef _KNCUBE_HPP_
 #define _KNCUBE_HPP_
 
-#include "globals.hpp"
 #include "network.hpp"
+#include "interface.hpp"
 
 class KNCube : public Network {
 
@@ -48,8 +48,8 @@ class KNCube : public Network {
   int _RightNode( int node, int dim );
 
 public:
-  KNCube( const Configuration &config, const string & name, bool mesh, booksim2::Interconnect* icnt );
-  static void RegisterRoutingFunctions(booksim2::Interconnect* icnt);
+  KNCube( const Configuration &config, const string & name, bool mesh, booksim2::Interface *itfc );
+  static void RegisterRoutingFunctions(booksim2::Interface *itfc);
 
   int GetN( ) const;
   int GetK( ) const;

@@ -40,19 +40,16 @@
 #include <queue>
 #include <cassert>
 
-#include "globals.hpp"
 #include "module.hpp"
 #include "timed_module.hpp"
-#include "Interconnect.hpp"
+#include "interface.hpp"
 
 using namespace std;
-
-class booksim2::Interconnect;
 
 template<typename T>
 class Channel : public TimedModule {
 public:
-  Channel(Module * parent, booksim2::Interconnect* icnt, string const & name);
+  Channel(Module * parent, booksim2::Interface *itfc, string const & name);
   virtual ~Channel() {}
 
   // Physical Parameters
@@ -75,13 +72,12 @@ protected:
   T * _output;
   queue<pair<int, T *> > _wait_queue;
 
-  booksim2::Interconnect* icnt;
-
+  booksim2::Interface *itfc;
 };
 
 template<typename T>
-Channel<T>::Channel(Module * parent, booksim2::Interconnect* icnt, string const & name)
-  : TimedModule(parent, name), _delay(1), _input(0), _output(0), icnt(icnt) {
+Channel<T>::Channel(Module * parent, booksim2::Interface *itfc, string const & name)
+  : TimedModule(parent, name), _delay(1), _input(0), _output(0) {
 }
 
 template<typename T>
@@ -104,7 +100,10 @@ T * Channel<T>::Receive() {
 
 template<typename T>
 void Channel<T>::ReadInputs() {
-  if(_input) { _wait_queue.push(make_pair(icnt->get_cycle() + _delay - 1, _input));
+  if(_input) {
+    _wait_queue.push(
+      make_pair(itfc->get_cycle() + _delay - 1, _input)
+    );
     _input = 0;
   }
 }
@@ -117,10 +116,10 @@ void Channel<T>::WriteOutputs() {
   }
   pair<int, T *> const & item = _wait_queue.front();
   int const & time = item.first;
-  if(icnt->get_cycle() < time) {
+  if(itfc->get_cycle() < time) {
     return;
   }
-  assert(icnt->get_cycle() == time);
+  assert(itfc->get_cycle() == time);
   _output = item.second;
   assert(_output);
   _wait_queue.pop();
