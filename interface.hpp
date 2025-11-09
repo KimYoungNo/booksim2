@@ -30,7 +30,7 @@ public:
   { READ, WRITE, READ_REPLY, WRITE_REPLY, ANY };
 
   Interface(const std::string&, const int);
-  ~Interface();
+  ~Interface() = default;
 
   void run();
   uint32_t get_flit_size() { return flit_size; }
